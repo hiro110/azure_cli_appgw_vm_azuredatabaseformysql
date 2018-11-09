@@ -1,0 +1,82 @@
+
+# ---------- Common Parameter ---------- 
+PJ_NAME="yourproject"
+LACATION="southeastasia" # japaneast, japanwest, eastasia, southeastasia
+RESOURCE_GROUP_NAME="${PJ_NAME}rg"
+
+# ---------- Netwotk ---------- 
+VNET_NAME="${PJ_NAME}vnet"
+VNET_ADDRESS="192.168.0.0/16"
+WEB_SUBNET_NAME="${PJ_NAME}dmz"
+WEB_SUBNET_ADDRESS="192.168.1.0/24"
+DB_SUBNET_NAME="${PJ_NAME}internal"
+DB_SUBNET_ADDRESS="192.168.2.0/24"
+
+# ---------- ApplicationGateway ----------
+AG_NAME="${PJ_NAME}appgw"
+AG_SUBNET_NAME="${AG_NAME}net"
+AG_SUBNET_ADDRESS="192.168.0.0/24"
+AG_PUBLICIP_NAME="${AG_NAME}pubip"
+AG_CAPACITY=1
+AG_SKU="Standard_Medium" # Standard_Large, Standard_Medium, Standard_Small, Standard_v2, WAF_Large, WAF_Medium, WAF_v2
+AG_AFFINITY="Disabled" # Disabled, Enabled
+
+AG_CSR_C="JP"
+AG_CSR_ST="State"
+AG_CSR_L="Location"
+AG_CSR_O="Organization"
+AG_CSR_OU="OrganizationUnit"
+
+AG_PROD_PFX_PASS="pfxpassword"
+AG_TEST_PFX_PASS="pfxpassword"
+
+AG_POOL_PRODUCTION_NAME="prodPool"
+AG_POOL_TEST_NAME="testPool"
+
+AG_HTTPS_PRODUCTION_LISTENER="prodHttpsListener"
+AG_HTTP_PRODUCTION_LISTENER="prodHttpListener"
+AG_HTTPS_TEST_LISTENER="testHttpsListener"
+AG_HTTP_TEST_LISTENER="testHttpListener"
+
+# ---------- Virtual Machine ---------- 
+VM_NAME="${PJ_NAME}wpwvm01"
+PUBLICIP_NAME="${VM_NAME}pubip"
+DNS_LABEL="${VM_NAME}"
+
+NSG_NAME="${PJ_NAME}nsg"
+NIC_NAME="${VM_NAME}nic"
+AVSET_NAME="${PJ_NAME}avset"
+
+# ---------- SKU ----------
+# Standard_D2s_v3 2vCPU, 8GB MEM, 16GB SSD(Temporary Storage)
+# Standard_D4s_v3 4vCPU, 16GB MEM, 32GB SSD(Temporary Storage)
+# https://docs.microsoft.com/ja-jp/azure/virtual-machines/linux/sizes-general#dsv3-series-sup1sup
+# Standard_DS1_v2 1vCPU, 3.5GB MEM, 7GB SSD(Temporary Storage)
+# Standard_DS2_v2 2vCPU, 7GB MEM, 14GB SSD(Temporary Storage)
+# Standard_DS3_v2 4vCPU, 14GB MEM, 28GB SSD(Temporary Storage)
+# Standard_DS4_v2 8vCPU, 28GB MEM, 56GB SSD((Temporary Storage)
+# Standard_DS5_v2 16vCPU, 56GB MEM, 112GB SSD(Temporary Storage)
+# https://docs.microsoft.com/ja-jp/azure/virtual-machines/linux/sizes-general#dsv2-series
+# --------------------------
+INSTANCE_SIZE="Standard_F2s"
+OS_IMAGE="OpenLogic:CentOS:7.5:7.5.20180815"
+OS_DISK_NAME="${VM_NAME}osdisk"
+OS_DISK_SIZE=32
+DATA_DISK_SIZE=30
+VM_ADMIN_NAME="adminname"
+PUB_KEY_PASS="/path/to/pub-key"
+
+PROD_HOST="example.jp"
+TEST_HOST="stg.example.jp"
+
+MACKEREL_APIKEY="apikey"
+
+# ---------- Azure Database for MySQL ----------
+DBSERVER_NAME="${PJ_NAME}wpdadm01"
+MYSQL_SKU=GP_Gen5_2
+STORAGE_SIZE=30720
+MYSQL_VERSION=5.7
+MYSQL_ADMIN_NAME="mysqladmin"
+MYSQL_ADMIN_PASS="mysqlpass"
+TEST_DB="testdb"
+PROD_DB="proddb"

@@ -1,0 +1,67 @@
+#!/bin/bash
+
+##############################################
+#
+# *** Create Internal Subnet ***
+# *** Create Azure Database for MySQL ***
+# *** Add VNetRule to Azure Database for MySQL ***
+# **** for Internal ****
+# **** for DMZ ****
+# *** Create Firewall Rule ***
+# *** Create Database ***
+# *** Edit Database Parameter ***
+#
+##############################################
+
+. ./conf.txt
+
+# --------------------------------------------------------------
+# *** Create Internal Subnet ***
+az network vnet subnet create \
+  -g $RESOURCE_GROUP_NAME \
+  -n $DB_SUBNET_NAME \
+  --vnet-name $VNET_NAME \
+  --address-prefix $DB_SUBNET_ADDRESS \
+  --service-endpoints Microsoft.SQL
+
+# *** Create Azure Database for MySQL ***
+az mysql server create \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --location $LACATION \
+  --name $DBSERVER_NAME \
+  --admin-user $MYSQL_ADMIN_NAME \
+  --admin-password  $MYSQL_ADMIN_PASS \
+  --ssl-enforcement Enabled \
+  --sku-name $MYSQL_SKU  \
+  --storage-size $STORAGE_SIZE \
+  --geo-redundant-backup disabled \
+  --version $MYSQL_VERSION
+
+# *** Add VNetRule to Azure Database for MySQL ***
+# **** for Internal ****
+az mysql server vnet-rule create \
+  -n $DB_SUBNET_NAME \
+  -g $RESOURCE_GROUP_NAME \
+  -s $DBSERVER_NAME \
+  --vnet-name $VNET_NAME \
+  --subnet $DB_SUBNET_NAME
+# **** for DMZ ****
+az mysql server vnet-rule create \
+  -n $WEB_SUBNET_NAME \
+  -g $RESOURCE_GROUP_NAME \
+  -s $DBSERVER_NAME \
+  --vnet-name $VNET_NAME \
+  --subnet $WEB_SUBNET_NAME
+
+# *** Create Firewall Rule ***
+az mysql server firewall-rule create --resource-group $RESOURCE_GROUP_NAME --server $DBSERVER_NAME --name fromWebApp${i} --start-ip-address 192.168.1.1 --end-ip-address 192.168.1.255
+
+# *** Create Database ***
+az mysql db create -g $RESOURCE_GROUP_NAME -s $DBSERVER_NAME -n $TEST_DB --charset utf8 --collation utf8_general_ci
+az mysql db create -g $RESOURCE_GROUP_NAME -s $DBSERVER_NAME -n $PROD_DB --charset utf8 --collation utf8_general_ci
+
+# *** Edit Database Parameter ***
+az mysql server configuration set --name slow_query_log --resource-group $RESOURCE_GROUP_NAME --server $DBSERVER_NAME --value ON
+az mysql server configuration set --name character_set_server --resource-group $RESOURCE_GROUP_NAME --server $DBSERVER_NAME --value UTF8
+az mysql server configuration set --name time_zone --resource-group $RESOURCE_GROUP_NAME --server $DBSERVER_NAME --value "+9:00"
+# --------------------------------------------------------------

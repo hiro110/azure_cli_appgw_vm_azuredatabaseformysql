@@ -1,0 +1,183 @@
+#!/bin/bash
+
+##############################################
+#
+# *** Create Subnet ***
+# *** Create SSL Certificate and Export Pfx file  ***
+# *** Create Application Gateway ***
+# **** Create Address Pool ***
+# **** Upload SSL Certificate ***
+# **** Create Http Listener ****
+# **** Create Routing Rule ****
+# **** Set Http to Https Redirect ****
+# **** Create Frontend Http Port ****
+# **** Create Http Listener ****
+# **** Create Http to Https Redirect Config ****
+# **** Create Http to Https Redirect Routeing Rule ****
+# *** Update SSL Policy ***
+# *** Enabled WAF ***
+#
+##############################################
+
+. ./conf.txt
+
+# --------------------------------------------------------------
+# *** Create Subnet ***
+az network vnet subnet create --address-prefix $AG_SUBNET_ADDRESS --name $AG_SUBNET_NAME --resource-group $RESOURCE_GROUP_NAME --vnet-name $VNET_NAME
+
+# *** Create SSL Certificate and Export Pfx file  ***
+openssl req -x509 -sha256 -nodes -days 3650 -newkey rsa:2048 -keyout ${PROD_HOST}.key -out ${PROD_HOST}.crt \
+     -subj "/C=${AG_CSR_C}/ST=${AG_CSR_ST}/L=${AG_CSR_L}/O=${AG_CSR_O}/OU=${AG_CSR_OU}/CN=${PROD_HOST}"
+openssl pkcs12 -export -out ${PROD_HOST}.pfx -inkey ${PROD_HOST}.key -in ${PROD_HOST}.crt -password pass:${AG_PROD_PFX_PASS}
+
+openssl req -x509 -sha256 -nodes -days 3650 -newkey rsa:2048 -keyout ${TEST_HOST}.key -out ${TEST_HOST}.crt \
+     -subj "/C=${AG_CSR_C}/ST=${AG_CSR_ST}/L=${AG_CSR_L}/O=${AG_CSR_O}/OU=${AG_CSR_OU}/CN=${TEST_HOST}"
+openssl pkcs12 -export -out ${TEST_HOST}.pfx -inkey ${TEST_HOST}.key -in ${TEST_HOST}.crt -password pass:${AG_TEST_PFX_PASS}
+
+# *** Create Application Gateway ***
+az network public-ip create --resource-group $RESOURCE_GROUP_NAME --name $AG_PUBLICIP_NAME
+
+az network application-gateway create \
+    --name $AG_NAME \
+    --location $LACATION \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --vnet-name $VNET_NAME \
+    --subnet $AG_SUBNET_NAME \
+    --capacity $AG_CAPACITY \
+    --sku $AG_SKU \
+    --http-settings-cookie-based-affinity $AG_AFFINITY \
+    --frontend-port 443 \
+    --http-settings-port 80 \
+    --http-settings-protocol Http \
+    --public-ip-address $AG_PUBLICIP_NAME \
+    --cert-file ${PROD_HOST}.pfx \
+    --cert-password $AG_PROD_PFX_PASS
+
+# **** Create Address Pool ***
+az network application-gateway address-pool create \
+  --gateway-name $AG_NAME \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --name $AG_POOL_PRODUCTION_NAME
+  az network application-gateway address-pool create \
+  --gateway-name $AG_NAME \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --name $AG_POOL_TEST_NAME
+# **** Upload SSL Certificate ***
+az network application-gateway ssl-cert create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --gateway-name $AG_NAME \
+    --name ProdSslCert  \
+    --cert-file  ${PROD_HOST}.pfx  \
+    --cert-password $AG_PROD_PFX_PASS
+az network application-gateway ssl-cert create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --gateway-name $AG_NAME \
+    --name TestSslCert  \
+    --cert-file  ${TEST_HOST}.pfx  \
+    --cert-password $AG_TEST_PFX_PASS
+# **** Create Http Listener ****
+az network application-gateway http-listener create \
+  --name $AG_HTTPS_PRODUCTION_LISTENER \
+  --frontend-ip appGatewayFrontendIP \
+  --frontend-port appGatewayFrontendPort \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --gateway-name $AG_NAME \
+  --host-name $PROD_HOST \
+  --ssl-cert ProdSslCert
+az network application-gateway http-listener create \
+  --name $AG_HTTPS_TEST_LISTENER \
+  --frontend-ip appGatewayFrontendIP \
+  --frontend-port appGatewayFrontendPort \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --gateway-name $AG_NAME \
+  --host-name $TEST_HOST \
+  --ssl-cert TestSslCert
+# **** Create Routing Rule ****
+az network application-gateway rule create \
+  --gateway-name $AG_NAME \
+  --name rule2 \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --http-listener $AG_HTTPS_PRODUCTION_LISTENER \
+  --rule-type Basic \
+  --address-pool $AG_POOL_PRODUCTION_NAME
+az network application-gateway rule create \
+  --gateway-name $AG_NAME \
+  --name rule3 \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --http-listener $AG_HTTPS_TEST_LISTENER \
+  --rule-type Basic \
+  --address-pool $AG_POOL_TEST_NAME
+az network application-gateway rule delete \
+  --gateway-name $AG_NAME \
+  --name rule1 \
+  --resource-group $RESOURCE_GROUP_NAME
+
+# **** Set Http to Https Redirect ****
+# **** Create Frontend Http Port ****
+az network application-gateway frontend-port create --port 80 --gateway-name $AG_NAME --resource-group $RESOURCE_GROUP_NAME --name httpPort
+# **** Create Http Listener ****
+az network application-gateway http-listener create \
+    --name $AG_HTTP_PRODUCTION_LISTENER \
+    --frontend-ip appGatewayFrontendIP \
+    --frontend-port httpPort \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --gateway-name $AG_NAME \
+    --host-name $PROD_HOST
+az network application-gateway http-listener create \
+    --name $AG_HTTP_TEST_LISTENER \
+    --frontend-ip appGatewayFrontendIP \
+    --frontend-port httpPort \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --gateway-name $AG_NAME \
+    --host-name $TEST_HOST
+# **** Create Http to Https Redirect Config ****
+az network application-gateway redirect-config create \
+    --name prodHttpToHttps \
+    --gateway-name $AG_NAME \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --type Permanent \
+    --target-listener $AG_HTTPS_PRODUCTION_LISTENER \
+    --include-path true \
+    --include-query-string true
+az network application-gateway redirect-config create \
+    --name testHttpToHttps \
+    --gateway-name $AG_NAME \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --type Permanent \
+    --target-listener $AG_HTTPS_TEST_LISTENER \
+    --include-path true \
+    --include-query-string true
+# **** Create Http to Https Redirect Routeing Rule ****
+az network application-gateway rule create \
+  --gateway-name $AG_NAME \
+  --name rule4 \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --http-listener $AG_HTTP_PRODUCTION_LISTENER \
+  --rule-type Basic \
+  --redirect-config prodHttpToHttps
+az network application-gateway rule create \
+  --gateway-name $AG_NAME \
+  --name rule5 \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --http-listener $AG_HTTP_TEST_LISTENER \
+  --rule-type Basic \
+  --redirect-config testHttpToHttps
+
+# *** Update SSL Policy ***
+az network application-gateway ssl-policy set \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --gateway-name $AG_NAME \
+  --name AppGwSslPolicy20170401S \
+  --policy-type Predefined
+
+# *** Enabled WAF ***
+# az network application-gateway waf-config set \
+#   --resource-group $RESOURCE_GROUP_NAME \
+#   --gateway-name $AG_NAME \
+#   --enabled true \
+#   --firewall-mode Detection \
+#   --rule-set-version 3.0
+
+# *** Remaining work ***
+# **** Add bakendpool to AppGw ****
+# --------------------------------------------------------------

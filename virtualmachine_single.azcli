@@ -1,0 +1,146 @@
+#!/bin/bash
+
+##############################################
+#
+# *** create script-config.json ***
+# *** Create Subnet***
+# *** Create Static Global IP ***
+# *** Create Network Security Group ***
+# *** Create Network Security Group Rules ***
+#  **** Allow Default SSH from Hproducts ****
+#  **** Allow Custom SSH from Hproducts ****
+#  **** Allow Http ****
+#  **** Allow Https ****
+# ***  Create NIC ***
+# ***  Create Availability set ***
+# *** Create Virtual Machine ***
+#
+##############################################
+
+. ./conf.txt
+
+# --------------------------------------------------------------
+# *** create script-config.json ***
+result=$(cat Centos7startup.sh | base64 -w0)
+cat << EOF > ./script-config.json
+{
+  "script": "${result}"
+}
+EOF
+
+# *** Create Subnet***
+az network vnet subnet create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --name $WEB_SUBNET_NAME \
+    --vnet-name $VNET_NAME \
+    --address-prefix $WEB_SUBNET_ADDRESS \
+    --service-endpoints Microsoft.SQL
+
+# *** Create Static Global IP ***
+az network public-ip create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --name $PUBLICIP_NAME \
+    --dns-name $DNS_LABEL \
+    --allocation-method Static
+
+# *** Create Network Security Group ***
+az network nsg create --resource-group $RESOURCE_GROUP_NAME --name $NSG_NAME
+
+# *** Create Network Security Group Rules ***
+# **** Allow Default SSH from Hproducts ****
+az network nsg rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --nsg-name $NSG_NAME \
+    --name fromHproductsOfficeOk \
+    --priority 1000 \
+    --destination-port-range 22 \
+    --protocol tcp \
+    --source-address-prefixes 113.43.186.158 \
+    --access allow
+# **** Allow Custom SSH from Hproducts ****
+az network nsg rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --nsg-name $NSG_NAME \
+    --name fromHproductsOfficeOldCustomOk \
+    --priority 1001 \
+    --destination-port-range 10022 \
+    --protocol tcp \
+    --source-address-prefixes 113.43.186.158 \
+    --access allow
+# **** Allow Custom SSH from Hproducts ****
+az network nsg rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --nsg-name $NSG_NAME \
+    --name fromHproductsVpnCustomOk \
+    --priority 1002 \
+    --destination-port-range 10022 \
+    --protocol tcp \
+    --source-address-prefixes 113.43.186.158 \
+    --access allow
+    # **** Allow Custom SSH from Hproducts ****
+az network nsg rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --nsg-name $NSG_NAME \
+    --name fromHproductsOfficeCustomOk \
+    --priority 1003 \
+    --destination-port-range 10022 \
+    --protocol tcp \
+    --source-address-prefixes 113.43.219.94 \
+    --access allow
+# **** Allow Http ****
+az network nsg rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --nsg-name $NSG_NAME \
+    --name myNetworkSecurityGroupRuleHTTP \
+    --priority 2000 \
+    --destination-port-range 80 \
+    --protocol tcp \
+    --access allow
+# **** Allow Https ****
+az network nsg rule create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --nsg-name $NSG_NAME \
+    --name myNetworkSecurityGroupRuleHTTPS \
+    --priority 2001 \
+    --destination-port-range 443 \
+    --protocol tcp \
+    --access allow
+
+# ***  Create NIC ***
+az network nic create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --name $NIC_NAME \
+    --vnet-name $VNET_NAME \
+    --subnet $WEB_SUBNET_NAME \
+    --public-ip-address $PUBLICIP_NAME \
+    --network-security-group $NSG_NAME \
+
+# ***  Create Availability set ***
+az vm availability-set create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --name $AVSET_NAME
+
+# *** Create Virtual Machine ***
+az vm create \
+    --resource-group $RESOURCE_GROUP_NAME \
+    --name $VM_NAME \
+    --location $LACATION \
+    --availability-set $AVSET_NAME \
+    --nics $NIC_NAME \
+    --size $INSTANCE_SIZE \
+    --image $OS_IMAGE \
+    --os-disk-name $OS_DISK_NAME \
+    --os-disk-size-gb $OS_DISK_SIZE \
+    --os-disk-caching ReadWrite \
+    --data-disk-sizes-gb $DATA_DISK_SIZE \
+    --data-disk-caching ReadWrite \
+    --admin-username $VM_ADMIN_NAME \
+    --ssh-key-value $PUB_KEY_PASS
+
+az vm extension set \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --vm-name $VM_NAME \
+  --name customScript \
+  --publisher Microsoft.Azure.Extensions \
+  --settings ./script-config.json
+# --------------------------------------------------------------
