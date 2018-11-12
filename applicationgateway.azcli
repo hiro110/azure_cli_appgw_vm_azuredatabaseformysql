@@ -170,6 +170,14 @@ az network application-gateway ssl-policy set \
   --name AppGwSslPolicy20170401S \
   --policy-type Predefined
 
+# *** Set Backend Address-Pool ***
+IPS=$(az vm list-ip-addresses --query "[].virtualMachine[].{PrivateIp:network.privateIpAddresses[0]}" -o tsv -g $RESOURCE_GROUP_NAME)
+az network application-gateway address-pool create \
+  --resource-group $RESOURCE_GROUP_NAME \
+  --gateway-name $AG_NAME \
+  --name MyAddressPool \
+  --servers $IPS
+
 # *** Enabled WAF ***
 # az network application-gateway waf-config set \
 #   --resource-group $RESOURCE_GROUP_NAME \
